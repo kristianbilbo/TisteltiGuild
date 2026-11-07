@@ -1,6 +1,6 @@
 # TisteltiGuild
 
-Addon para WoW Forever (interfaz 16001). Versión inicial del repositorio: **0.8.1-beta**.
+Addon para WoW Forever (interfaz 16001). Versión actual **0.9.1-beta**.
 
 Panel de grupo y hermandad, profesiones, encargos, equipo, diario de aventuras y mapa.
 
@@ -20,4 +20,6 @@ La configuración se guarda en `TisteltiGuildDB` y `TisteltiJourneyDB`. Este rep
 
 ## Estado
 
-Código importado del paquete `TisteltiGuild-0.8.1-beta-para-compartir.zip` sin modificar su comportamiento. La comprobación de archivos y manifiesto no sustituye las pruebas dentro del juego.
+Banco con pestañas, casillas, iconos y cantidades. Las posiciones se registran al abrir el banco. Integración del mapa de hermandad con OpenMap y diagnóstico mediante `/tisteltimapa`.
+
+Pendiente de confirmar en el juego la lectura visual del banco y las posiciones compartidas entre dos jugadores.

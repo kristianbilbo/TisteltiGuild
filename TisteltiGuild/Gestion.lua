@@ -198,22 +198,25 @@ local function readPersonalBank()
         or not C_Container or not C_Bank.CanUseBank(kind) then return end
     local bags=C_Bank.FetchPurchasedBankTabIDs(kind)
     if not bags or #bags==0 then return end
-    local items={}
-    for _,bag in ipairs(bags) do
+    local items,tabs={},{}
+    for page,bag in ipairs(bags) do
         local size=C_Container.GetContainerNumSlots(bag)
         if not size or size<1 then return end
+        local cells={}
+        tabs[bag]={name="Pestaña "..page,size=size,slots=cells,t=time()}
         for slot=1,size do
             local id=C_Container.GetContainerItemID(bag,slot)
             local info=C_Container.GetContainerItemInfo(bag,slot)
             if id or info then
                 if not id or not info or info.itemID~=id or not info.stackCount or info.stackCount<1 then return end
                 items[id]=(items[id] or 0)+info.stackCount
+                cells[slot]={id=id,count=info.stackCount,icon=info.iconFileID,link=info.hyperlink}
             end
         end
     end
     local db=state()
     db.personalBank=db.personalBank or {}
-    db.personalBank[artisanKey(realmName("player"))]={items=items,t=time()}
+    db.personalBank[artisanKey(realmName("player"))]={items=items,tabs=tabs,t=time()}
     return true
 end
 local function readBank()
@@ -222,18 +225,18 @@ local function readBank()
     if not index or not GetGuildBankTabInfo then return end
     local name,_,visible=GetGuildBankTabInfo(index)
     if not visible then return end
-    local items={}
+    local items,cells={},{}
     for slot=1,98 do
         local texture,n=GetGuildBankItemInfo(index,slot)
         local link=GetGuildBankItemLink(index,slot)
         if texture and not link then return end
-        if link then items[link]=(items[link] or 0)+(n or 1) end
+        if link then items[link]=(items[link] or 0)+(n or 1) cells[slot]={link=link,icon=texture,count=n or 1} end
     end
     local db=state()
     db.bank=db.bank or {}
     local who=realmName("player")
     db.bank[who]=db.bank[who] or {}
-    db.bank[who][index]={name=name or tostring(index),t=time(),items=items}
+    db.bank[who][index]={name=name or tostring(index),t=time(),items=items,size=98,slots=cells}
     return true
 end
 local bankGeneration=0
@@ -508,13 +511,13 @@ local function displayOrders(db)
 end
 refresh=function()
     if not window or not window:IsShown() or not available() then return end
-    ui.hideCraft()
+    ui.hideCraft() ui.hideBank()
     local journal=tab==1 or tab==5
     input:SetShown(tab==6)
     if window.orderFilter then window.orderFilter:Hide() end
     for _,row in ipairs(window.orderRows or {}) do row:Hide() end
     listing:Show()
-    window.scroll:SetShown(tab~=2)
+    window.scroll:SetShown(tab~=2 and tab~=7)
     window.scroll:ClearAllPoints()
     window.scroll:SetPoint("TOPLEFT",window,"TOPLEFT",38,journal and -120 or -150)
     window.scroll:SetPoint("BOTTOMRIGHT",window,"BOTTOMRIGHT",-52,68)
@@ -572,25 +575,9 @@ refresh=function()
         end)
         action(1,"Materiales del banco",function() tab=7 input:SetText("") refresh() end)
     elseif tab==7 then
-        hint:SetText("Abre el banco de tu personaje para guardar su contenido. En el de hermandad, visita cada pestaña.")
-        local personal=(db.personalBank or {})[artisanKey(realmName("player"))]
-        if personal then
-            line("Banco personal · "..date("%d/%m %H:%M",personal.t))
-            local material={}
-            for id,n in pairs(personal.items) do
-                local name,link=C_Item.GetItemInfo(id)
-                material[#material+1]=n.." × "..(link or name or ("Objeto #"..id))
-            end
-            table.sort(material)
-            for _,item in ipairs(material) do line(item) end
-            if #material==0 then line("Banco personal vacío.") end
-        else line("Banco personal pendiente de la primera lectura.") end
-        local tabs=(db.bank or {})[realmName("player")] or {}
-        for _,b in pairs(tabs) do
-            line("Banco de hermandad · "..b.name.." · "..date("%d/%m %H:%M",b.t))
-            for item,n in pairs(b.items) do line(n.." × "..item) end
-            if not next(b.items) then line("Pestaña vacía.") end
-        end
+        hint:SetText("Contenido de la última visita. Abre el banco para actualizar sus casillas.")
+        ui.bank(window,(db.personalBank or {})[artisanKey(realmName("player"))],(db.bank or {})[realmName("player")] or {},refresh)
+        return
     elseif tab==5 then
         hint:SetText("Registro automático por personaje. Abre el diario para consultar el mapa o copiar una visita.")
         for _,r in ipairs((TisteltiJourneyDB and TisteltiJourneyDB.history) or {}) do line("|TInterface\\Icons\\INV_Misc_Map_01:18|t "..chronicle(r.start).." · "..r.name.." · "..math.floor((r.stop-r.start)/60).." min") end
@@ -644,8 +631,8 @@ function GestionGuildAbrir()
             local f=window:CreateFontString(nil,"OVERLAY",style) f:SetPoint("TOPLEFT",x,y) f:SetWidth(width) f:SetJustifyH("LEFT") return f
         end
         title=font(16,-16,600,"GameFontNormalLarge")
-        for i,ix in ipairs({1,2,3,4,5,6}) do local target=ix
-            button(window,names[ix],147,15+(i-1)*152,-48,function() tab=target offset=0 input:SetText("") refresh() end)
+        for i,ix in ipairs({1,2,3,4,5,6,7}) do local target=ix
+            button(window,names[ix],126,15+(i-1)*130,-48,function() tab=target offset=0 input:SetText("") refresh() end)
         end
         hint=font(18,-82,700,"GameFontHighlightSmall")
         input=CreateFrame("EditBox",nil,window,"InputBoxTemplate")

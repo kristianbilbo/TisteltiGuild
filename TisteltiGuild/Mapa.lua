@@ -2,6 +2,8 @@
 local prefix = "TisteltiMap1"
 local members, pins, classes = {}, {}, {}
 local guild, last, sent, lastClassTime
+local received,drawn=0,0
+local registration,sendResult
 local function context()
     local current = GetGuildInfo("player")
     if current ~= guild then
@@ -13,6 +15,12 @@ local function context()
 end
 
 local function position(map, p)
+    local api=OpenMapAPI
+    if api and api.IsStitched() then
+        local u,v=api.WorldFromMap(p.map,p.x,p.y)
+        if u then return api.MapFromWorld(map,u,v) end
+        return
+    end
     if map == p.map then return p.x, p.y end
     if not C_Map.GetMapRectOnMap then return end
     local info = C_Map.GetMapInfo(p.map)
@@ -39,7 +47,7 @@ local function redraw()
             members[name] = nil
         else
             local x,y = position(map,p)
-            if x and x>=0 and x<=1 and y>=0 and y<=1 then
+            if x and y and ((OpenMapAPI and OpenMapAPI.IsStitched()) or (x>=0 and x<=1 and y>=0 and y<=1)) then
                 count = count+1
                 local pin = pins[count]
                 if not pin then
@@ -61,13 +69,17 @@ local function redraw()
                 local color = RAID_CLASS_COLORS[classes[name] or ""]
                 if color then pin.icon:SetVertexColor(color.r,color.g,color.b) else pin.icon:SetVertexColor(.7,.7,.7) end
                 pin.member = name
-                pin:SetFrameLevel(canvas:GetFrameLevel()+30)
+                local art=OpenMapAPI and OpenMapAPI.ArtTopLevel and OpenMapAPI.ArtTopLevel() or 0
+                pin:SetFrameLevel(math.max(canvas:GetFrameLevel()+30,art or 0)+5)
+                local scale=frame.GetCanvasScale and frame:GetCanvasScale() or 1
+                pin:SetScale(1/math.max(.01,scale))
                 pin:ClearAllPoints()
                 pin:SetPoint("CENTER",canvas,"TOPLEFT",x*canvas:GetWidth(),-y*canvas:GetHeight())
                 pin:Show()
             end
         end
     end
+    drawn=count
     for i=count+1,#pins do pins[i]:Hide() end
 end
 
@@ -88,8 +100,9 @@ local function broadcast()
             if class then C_ChatInfo.SendAddonMessage(prefix,"C:"..class,"GUILD") end
             lastClassTime = GetTime()
         end
-        C_ChatInfo.SendAddonMessage(prefix,msg,"GUILD")
-        last,sent = msg,GetTime()
+        sendResult=C_ChatInfo.SendAddonMessage(prefix,msg,"GUILD")
+        local success=Enum and Enum.SendAddonMessageResult and Enum.SendAddonMessageResult.Success or 0
+        if sendResult==nil or sendResult==true or sendResult==success then last,sent = msg,GetTime() end
     end
 end
 
@@ -98,11 +111,13 @@ frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("CHAT_MSG_ADDON")
 frame:SetScript("OnEvent",function(_,event,key,msg,channel,sender)
     if event=="PLAYER_LOGIN" then
-        if C_ChatInfo and C_Map and C_ChatInfo.RegisterAddonMessagePrefix(prefix) then
+        if C_ChatInfo and C_Map then
+            registration=C_ChatInfo.RegisterAddonMessagePrefix(prefix)
             C_Timer.NewTicker(4,broadcast)
             C_Timer.NewTicker(1,function() context() redraw() end)
         end
     elseif key==prefix and channel=="GUILD" and context() then
+        received=received+1
         local name,realm = UnitFullName("player")
         if sender==name or sender==name.."-"..(realm or GetNormalizedRealmName()) then return end
         local class = msg:match("^C:([A-Z]+)$")
@@ -116,3 +131,21 @@ frame:SetScript("OnEvent",function(_,event,key,msg,channel,sender)
     end
 end)
 
+
+
+SLASH_TISTELTIMAP1="/tisteltimapa"
+SlashCmdList.TISTELTIMAP=function()
+    broadcast()
+    redraw()
+    local peers=0
+    for who,p in pairs(members) do
+        if GetTime()-p.time<=45 then
+            peers=peers+1
+            print("TisteltiGuild · "..who.." · mapa "..p.map.." · recibido hace "..math.floor(GetTime()-p.time).." s")
+        end
+    end
+    print("TisteltiGuild mapa 0.9.1 · Hermandad: "..tostring(guild)..
+        " · mensajes: "..received.." · posiciones recientes: "..peers.." · marcadores: "..drawn)
+    print("Registro: "..tostring(registration).." · resultado de envío: "..tostring(sendResult)..
+        " · última posición enviada: "..tostring(last).." · OpenMap: "..tostring(OpenMapAPI and OpenMapAPI.IsStitched() or false))
+end
