@@ -4,6 +4,41 @@ local members, pins, classes = {}, {}, {}
 local guild, last, sent, lastClassTime
 local received,drawn=0,0
 local registration,sendResult
+-- Forever puede usar «Nombre Apellido-Reino» en las unidades y
+-- «Nombre-Apellido» en el canal de hermandad (igual que en Gestion.lua).
+local function characterKey(who)
+    if not who then return end
+    local realm = GetNormalizedRealmName()
+    local name, suffix = who:match("^([^-]+)%-(.+)$")
+    if not name then name, suffix = who, realm end
+    if suffix == realm then
+        local first, last = name:match("^(%S+)%s+([^%s-]+)$")
+        if first then return first.."-"..last end
+    end
+    return name.."-"..suffix
+end
+
+local function unitKey(unit)
+    local name, realm = UnitFullName(unit)
+    if not name or (issecretvalue and (issecretvalue(name) or issecretvalue(realm))) then return end
+    return characterKey(name.."-"..((realm and realm ~= "") and realm or GetNormalizedRealmName()))
+end
+
+local function nativeMarkers()
+    local hidden = {}
+    local function add(unit)
+        local key = unitKey(unit)
+        if key then hidden[key] = true end
+    end
+    add("player")
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do add("raid"..i) end
+    else
+        for i = 1, GetNumSubgroupMembers() do add("party"..i) end
+    end
+    return hidden
+end
+
 local function context()
     local current = GetGuildInfo("player")
     if current ~= guild then
@@ -42,10 +77,11 @@ local function redraw()
     local canvas, map = frame:GetCanvas(), frame:GetMapID()
     if not canvas or not map then return end
     local count = 0
+    local hidden = nativeMarkers()
     for name,p in pairs(members) do
         if GetTime()-p.time > 45 then
             members[name] = nil
-        else
+        elseif not hidden[characterKey(name)] then
             local x,y = position(map,p)
             if x and y and ((OpenMapAPI and OpenMapAPI.IsStitched()) or (x>=0 and x<=1 and y>=0 and y<=1)) then
                 count = count+1
@@ -109,6 +145,7 @@ end
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("CHAT_MSG_ADDON")
+frame:RegisterEvent("GROUP_ROSTER_UPDATE")
 frame:SetScript("OnEvent",function(_,event,key,msg,channel,sender)
     if event=="PLAYER_LOGIN" then
         if C_ChatInfo and C_Map then
@@ -116,10 +153,13 @@ frame:SetScript("OnEvent",function(_,event,key,msg,channel,sender)
             C_Timer.NewTicker(4,broadcast)
             C_Timer.NewTicker(1,function() context() redraw() end)
         end
+    elseif event=="GROUP_ROSTER_UPDATE" then
+        context()
+        redraw()
     elseif key==prefix and channel=="GUILD" and context() then
         received=received+1
-        local name,realm = UnitFullName("player")
-        if sender==name or sender==name.."-"..(realm or GetNormalizedRealmName()) then return end
+        sender = characterKey(sender)
+        if not sender or sender==unitKey("player") then return end
         local class = msg:match("^C:([A-Z]+)$")
         if class and RAID_CLASS_COLORS[class] then classes[sender]=class return end
         if msg=="-" then members[sender]=nil return end

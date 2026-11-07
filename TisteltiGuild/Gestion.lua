@@ -511,7 +511,7 @@ local function displayOrders(db)
 end
 refresh=function()
     if not window or not window:IsShown() or not available() then return end
-    ui.hideCraft() ui.hideBank()
+    ui.hideCraft() ui.hideBank() ui.hideGear()
     local journal=tab==1 or tab==5
     input:SetShown(tab==6)
     if window.orderFilter then window.orderFilter:Hide() end
@@ -599,15 +599,10 @@ refresh=function()
         return
     elseif tab==4 then
         hint:SetText("Equipo registrado por personaje. Las mejoras de botín se consultan automáticamente.")
-        for who,gear in pairs(db.gear or {}) do
-            line("Equipo · "..ui.short(who))
-            for slot,id in gear:gmatch("(%d+)=(%d+)") do
-                local item=select(2,C_Item.GetItemInfo(tonumber(id)))
-                local tex=C_Item.GetItemIconByID(tonumber(id)) or 134400
-                local slotNames={"Cabeza","Cuello","Hombros","Camisa","Pecho","Cintura","Piernas","Pies","Muñecas","Manos","Anillo","Anillo","Abalorio","Abalorio","Espalda","Mano principal","Mano secundaria","A distancia","Tabardo"}
-                line("|T"..tex..":22|t  "..(slotNames[tonumber(slot)] or slot).."   "..(item or ("|Hitem:"..id.."|h[Objeto #"..id.."]|h")))
-            end
-        end
+        local populated=ui.gear(window.page,db,artisanKey)
+        listing:SetShown(not populated)
+        listing:SetText("Todavía no hay equipo registrado.")
+        return
     elseif tab==6 then
         hint:SetText("Escribe un reto para la hermandad. Caduca a los siete días.")
         for _,r in pairs(db.goals) do
@@ -711,6 +706,8 @@ events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("CHAT_MSG_ADDON")
 events:RegisterEvent("GROUP_ROSTER_UPDATE")
 events:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+events:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+events:RegisterEvent("UNIT_PORTRAIT_UPDATE")
 events:RegisterEvent("TRADE_SKILL_SHOW")
 events:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
 for _,event in ipairs({"BANKFRAME_OPENED","BANKFRAME_CLOSED","BAG_UPDATE_DELAYED","PLAYERBANKSLOTS_CHANGED","BANK_TABS_CHANGED","GUILDBANK_UPDATE_TABS","GUILDBANKFRAME_OPENED","GUILDBANKFRAME_CLOSED","GUILDBANKBAGSLOTS_CHANGED","CHAT_MSG_LOOT"}) do pcall(events.RegisterEvent,events,event) end
@@ -734,6 +731,8 @@ events:SetScript("OnEvent",function(_,event,...)
         end)
     elseif event=="GROUP_ROSTER_UPDATE" then partyStory() refresh()
     elseif event=="PLAYER_EQUIPMENT_CHANGED" then if available() then snapshot() end
+    elseif event=="GET_ITEM_INFO_RECEIVED" or event=="UNIT_PORTRAIT_UPDATE" then
+        if tab==4 then refresh() end
     elseif event=="BANKFRAME_OPENED" then personalOpen=true queueBankRead()
     elseif event=="BANKFRAME_CLOSED" then personalOpen=false
     elseif event=="BAG_UPDATE_DELAYED" or event=="PLAYERBANKSLOTS_CHANGED" or event=="BANK_TABS_CHANGED" then

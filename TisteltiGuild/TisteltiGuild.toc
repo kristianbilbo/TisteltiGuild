@@ -11,6 +11,7 @@ Migracion.lua
 Diario.lua
 Profesiones.lua
 Banco.lua
+Equipo.lua
 Gestion.lua
 Mapa.lua
 Minimapa.lua

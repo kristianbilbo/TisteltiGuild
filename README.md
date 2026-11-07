@@ -22,4 +22,8 @@ La configuración se guarda en `TisteltiGuildDB` y `TisteltiJourneyDB`. Este rep
 
 Banco con pestañas, casillas, iconos y cantidades. Las posiciones se registran al abrir el banco. Integración del mapa de hermandad con OpenMap y diagnóstico mediante `/tisteltimapa`.
 
+El mapa excluye el personaje propio y los miembros del grupo o banda para evitar marcadores duplicados, teniendo en cuenta los apellidos de Forever. Equipo muestra fichas en dos columnas con nombres centrados y retratos de las unidades disponibles.
+
+Comprobaciones en Lua 5.1: filtrado de marcadores, cambios de grupo, distribución de fichas, retratos y reutilización de filas.
+
 Pendiente de confirmar en el juego la lectura visual del banco y las posiciones compartidas entre dos jugadores.
