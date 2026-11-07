@@ -44,7 +44,7 @@ local function context()
     if current ~= guild then
         guild, last, sent = current, nil, nil
         wipe(members) wipe(classes)
-        for _, pin in ipairs(pins) do pin:Hide() end
+        for _, pin in ipairs(pins) do pin.location=nil pin:Hide() end
     end
     return guild
 end
@@ -69,6 +69,27 @@ local function position(map, p)
         end
         info = C_Map.GetMapInfo(info.parentMapID)
     end
+end
+
+local function placePin(pin, frame, canvas, map)
+    local x,y = position(map,pin.location)
+    if not x or not y or (not (OpenMapAPI and OpenMapAPI.IsStitched())
+        and (x<0 or x>1 or y<0 or y>1)) then
+        pin:Hide()
+        return
+    end
+    -- Los offsets pertenecen al lienzo: cambiar la escala del propio pin
+    -- también los reescala y desplaza el marcador. Compensar sólo su tamaño.
+    local scale=frame.GetCanvasScale and frame:GetCanvasScale() or 1
+    local size=10/math.max(.01,scale)
+    pin:SetParent(canvas)
+    pin:SetScale(1)
+    pin:SetSize(size,size)
+    pin:ClearAllPoints()
+    pin:SetPoint("CENTER",canvas,"TOPLEFT",x*canvas:GetWidth(),-y*canvas:GetHeight())
+    local art=OpenMapAPI and OpenMapAPI.ArtTopLevel and OpenMapAPI.ArtTopLevel() or 0
+    pin:SetFrameLevel(math.max(canvas:GetFrameLevel()+30,art or 0)+5)
+    pin:Show()
 end
 
 local function redraw()
@@ -105,18 +126,13 @@ local function redraw()
                 local color = RAID_CLASS_COLORS[classes[name] or ""]
                 if color then pin.icon:SetVertexColor(color.r,color.g,color.b) else pin.icon:SetVertexColor(.7,.7,.7) end
                 pin.member = name
-                local art=OpenMapAPI and OpenMapAPI.ArtTopLevel and OpenMapAPI.ArtTopLevel() or 0
-                pin:SetFrameLevel(math.max(canvas:GetFrameLevel()+30,art or 0)+5)
-                local scale=frame.GetCanvasScale and frame:GetCanvasScale() or 1
-                pin:SetScale(1/math.max(.01,scale))
-                pin:ClearAllPoints()
-                pin:SetPoint("CENTER",canvas,"TOPLEFT",x*canvas:GetWidth(),-y*canvas:GetHeight())
-                pin:Show()
+                pin.location = p
+                placePin(pin,frame,canvas,map)
             end
         end
     end
     drawn=count
-    for i=count+1,#pins do pins[i]:Hide() end
+    for i=count+1,#pins do pins[i].location=nil pins[i]:Hide() end
 end
 
 local function broadcast()
@@ -143,6 +159,17 @@ local function broadcast()
 end
 
 local frame = CreateFrame("Frame")
+-- El zoom y el cambio de mapa anfitrión de OpenMap se animan cada fotograma.
+-- Recolocar los pins existentes sin esperar al ticker de posiciones de 1 s.
+frame:SetScript("OnUpdate",function()
+    local mapFrame=WorldMapFrame
+    if not mapFrame or not mapFrame:IsShown() or not mapFrame.GetCanvas then return end
+    local canvas,map=mapFrame:GetCanvas(),mapFrame:GetMapID()
+    if not canvas or not map then return end
+    for _,pin in ipairs(pins) do
+        if pin.location then placePin(pin,mapFrame,canvas,map) end
+    end
+end)
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("CHAT_MSG_ADDON")
 frame:RegisterEvent("GROUP_ROSTER_UPDATE")
@@ -184,7 +211,7 @@ SlashCmdList.TISTELTIMAP=function()
             print("TisteltiGuild · "..who.." · mapa "..p.map.." · recibido hace "..math.floor(GetTime()-p.time).." s")
         end
     end
-    print("TisteltiGuild mapa 0.9.1 · Hermandad: "..tostring(guild)..
+    print("TisteltiGuild mapa 0.9.2 · Hermandad: "..tostring(guild)..
         " · mensajes: "..received.." · posiciones recientes: "..peers.." · marcadores: "..drawn)
     print("Registro: "..tostring(registration).." · resultado de envío: "..tostring(sendResult)..
         " · última posición enviada: "..tostring(last).." · OpenMap: "..tostring(OpenMapAPI and OpenMapAPI.IsStitched() or false))
