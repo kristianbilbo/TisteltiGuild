@@ -71,16 +71,19 @@ function ui.bank(parent,personal,guild,refresh)
                 if not self.item then return end
                 GameTooltip:SetOwner(self,"ANCHOR_RIGHT")
                 GameTooltip:SetHyperlink(self.item.link or ("item:"..self.item.id))
+                local id=self.item.id or (self.item.link and tonumber(self.item.link:match("item:(%d+)")))
+                if ui.addMaterialTooltip then ui.addMaterialTooltip(GameTooltip,id,{count=self.item.count}) end
                 GameTooltip:Show()
             end)
             b:SetScript("OnLeave",function() GameTooltip:Hide() end)
             panel.cells[i]=b
         end
         local item=data.slots[i]
+        local itemID=item and (item.id or (item.link and tonumber(item.link:match("item:(%d+)"))))
         b.item=item
-        b.icon:SetTexture(item and (item.icon or C_Item.GetItemIconByID(item.id) or 134400))
+        b.icon:SetTexture(item and (item.icon or (itemID and C_Item.GetItemIconByID(itemID)) or 134400))
         b.count:SetText(item and item.count>1 and item.count or "")
-        if ui.materialBorder then ui.materialBorder(b,item and item.id) end
+        if ui.materialBorder then ui.materialBorder(b,itemID) end
         b:Show()
     end
     for i=count+1,#panel.cells do panel.cells[i]:Hide() end

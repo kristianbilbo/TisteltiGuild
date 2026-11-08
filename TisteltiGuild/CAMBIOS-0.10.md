@@ -1,4 +1,8 @@
-# TisteltiGuild 0.10.2-beta
+# TisteltiGuild 0.10.3-beta
+
+- Neón en banco nativo personal moderno/clásico y banco de hermandad. Actualización al cambiar pestaña o vaciar casillas. La vista de banco del addon resuelve también IDs de enlaces antiguos de hermandad.
+- Consejo principal en tooltip: enviar, reservar, subastar o vender al vendedor según recetas y precios. Se respetan los favoritos. Los objetos ligados o de misión no reciben recomendaciones de subasta.
+- Integración opcional con la API pública de Auctionator para precio y antigüedad. Halo dorado pulsante con moneda para precios recientes de al menos 1 oro por unidad y cinco veces el valor de venta al vendedor; umbrales y avisos configurables en Repartir materiales. Los precios de más de tres días o sin fecha no activan el aviso. No se publica ninguna subasta ni se calcula rentabilidad de fabricación.
 
 - Neón de un solo color para evitar mezclas difíciles de distinguir: usa el oficio del destinatario favorito o del mejor recomendado. Si ese personaje tiene varios oficios que consumen el material, se priorizan las recetas aprendidas, después las futuras y finalmente el nombre del oficio. Cambiar favorito actualiza también el borde.
 

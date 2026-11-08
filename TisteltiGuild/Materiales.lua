@@ -53,6 +53,7 @@ function ui.unpackMaterialRecipe(r,meta)
     end
 end
 function ui.invalidateMaterials() cache=nil dirty=true end
+function ui.requestMaterialUpdate() dirty=true end
 function ui.setMaterialFavorite(db,id,who,enabled)
     local key=tostring(id)
     db.materialFavorites=db.materialFavorites or {}
@@ -162,7 +163,12 @@ local function stock()
             local info=C_Container.GetContainerItemInfo(bag,slot)
             if info and info.itemID then
                 local item=items[info.itemID] or {id=info.itemID,count=0,icon=info.iconFileID,link=info.hyperlink}
+                if ui.materialSaleContext then
+                    local context=ui.materialSaleContext(bag,slot)
+                    if not item.context or context.bound==false then item.context=context end
+                end
                 item.count=item.count+(info.stackCount or 1) items[info.itemID]=item
+                if item.context then item.context.count=item.count end
             end
         end
     end
@@ -202,12 +208,15 @@ local function editColor(db,id,refresh)
         picker:Show()
     end
 end
-local function renderRecipients(db,id,refresh)
+local function renderRecipients(db,id,refresh,context)
     panel.text:SetText(id and ("|cffffd26a"..itemName(id).."|r") or "No tienes materiales en las bolsas.")
+    if id and ui.materialAdviceText then
+        panel.text:SetText("|cffffd26a"..itemName(id).."|r\n"..ui.materialAdviceText(db,id,context))
+    end
     local top=panel.text:GetStringHeight()+18
     local entries=id and ui.materialRecipients(db,id) or {}
     if #entries==0 and id then
-        panel.text:SetText("|cffffd26a"..itemName(id).."|r\n\nSin destinatarios registrados.")
+        if not ui.materialAdviceText then panel.text:SetText("|cffffd26a"..itemName(id).."|r\n\nSin destinatarios registrados.") end
         top=panel.text:GetStringHeight()+18
     end
     for i,e in ipairs(entries) do
@@ -278,6 +287,22 @@ local function renderRecipients(db,id,refresh)
     top=top+math.ceil(#professionOrder/2)*42
     panel.reset:ClearAllPoints() panel.reset:SetPoint("TOPLEFT",4,-top)
     panel.reset:SetScript("OnClick",function() db.materialColors=nil dirty=true refresh() end)
+    panel.auctionToggle:ClearAllPoints() panel.auctionToggle:SetPoint("TOPLEFT",256,-top)
+    panel.auctionToggle:SetText(db.materialAuctionAlerts==false and "Aviso subasta: no" or "Aviso subasta: sí")
+    panel.auctionToggle:SetScript("OnClick",function() db.materialAuctionAlerts=db.materialAuctionAlerts==false dirty=true refresh() end)
+    top=top+38
+    local function cycle(key,values)
+        local current=tonumber(db[key]) or (key=="materialAuctionMinimum" and 10000 or 5)
+        local value=values[1]
+        for i,v in ipairs(values) do if v==current then value=values[i%#values+1] break end end
+        db[key]=value dirty=true refresh()
+    end
+    panel.auctionMinimum:ClearAllPoints() panel.auctionMinimum:SetPoint("TOPLEFT",4,-top)
+    panel.auctionMinimum:SetText("Mínimo/u: "..(ui.materialMoney and ui.materialMoney(db.materialAuctionMinimum or 10000) or "1 oro"))
+    panel.auctionMinimum:SetScript("OnClick",function() cycle("materialAuctionMinimum",{1000,5000,10000,50000}) end)
+    panel.auctionMultiple:ClearAllPoints() panel.auctionMultiple:SetPoint("TOPLEFT",256,-top)
+    panel.auctionMultiple:SetText("Sobre vendedor: ×"..(db.materialAuctionMultiple or 5))
+    panel.auctionMultiple:SetScript("OnClick",function() cycle("materialAuctionMultiple",{2,5,10,20}) end)
     panel.detail:SetHeight(top+38)
 end
 function ui.hideMaterials() if panel then panel:Hide() end end
@@ -298,6 +323,9 @@ function ui.materials(parent,db,refresh)
         panel.buttons={} panel.recipients={} panel.legend={}
         panel.legendTitle=panel.detail:CreateFontString(nil,"OVERLAY","GameFontNormal")
         panel.reset=ui.button(panel.detail) panel.reset:SetSize(190,26) panel.reset:SetText("Restablecer colores")
+        panel.auctionToggle=ui.button(panel.detail) panel.auctionToggle:SetSize(244,26)
+        panel.auctionMinimum=ui.button(panel.detail) panel.auctionMinimum:SetSize(244,26)
+        panel.auctionMultiple=ui.button(panel.detail) panel.auctionMultiple:SetSize(244,26)
     end
     refreshPanel=refresh
     panel:Show()
@@ -311,12 +339,15 @@ function ui.materials(parent,db,refresh)
             b=ui.button(panel.items) b:SetSize(292,30) b:SetPoint("TOPLEFT",0,-(i-1)*33)
             panel.buttons[i]=b
             b:SetScript("OnEnter",function(self)
-                GameTooltip:SetOwner(self,"ANCHOR_RIGHT") GameTooltip:SetHyperlink("item:"..self.itemID) GameTooltip:Show()
+                GameTooltip:SetOwner(self,"ANCHOR_RIGHT") GameTooltip:SetHyperlink("item:"..self.itemID)
+                if ui.addMaterialTooltip then ui.addMaterialTooltip(GameTooltip,self.itemID,self.context) end
+                GameTooltip:Show()
             end)
             b:SetScript("OnLeave",function() GameTooltip:Hide() end)
         end
         local id=item.id
         b.itemID=id
+        b.context=item.context
         b:SetText("|T"..(item.icon or 134400)..":20|t "..itemName(id).." ×"..item.count)
         b:SetBackdropBorderColor(chosen==id and 1 or .4,.65,.25,1)
         b:SetScript("OnClick",function() chosen=id panel.right:SetVerticalScroll(0) refresh() end)
@@ -324,7 +355,7 @@ function ui.materials(parent,db,refresh)
     end
     for i=#list+1,#panel.buttons do panel.buttons[i]:Hide() end
     panel.items:SetHeight(math.max(1,#list*33))
-    renderRecipients(db,chosen,refresh)
+    renderRecipients(db,chosen,refresh,chosen and items[chosen] and items[chosen].context)
 end
 
 -- Capas propias: no modifican las texturas de calidad ni la marca de misión.
@@ -357,11 +388,12 @@ local function drawNeon(button,list,db)
     end
     for i=n+1,#textures do textures[i]:Hide() end
 end
-function ui.materialBorder(button,id,quest)
+function ui.materialBorder(button,id,quest,context)
     local db=ui.guildState()
     local primary=db.materialBorders~=false and not quest and id and ui.materialPrimaryProfession(db,id)
     local list=primary and {primary} or {}
     drawNeon(button,list,db)
+    if ui.materialAuctionGlow then ui.materialAuctionGlow(button,id,db,quest,context) end
 end
 function ui.professionSampleBorder(button,id,db)
     drawNeon(button,{id},db)
@@ -400,7 +432,8 @@ local function updateBags()
                 if bag==nil then bag=container:GetID() end
                 local info=type(bag)=="number" and type(slot)=="number" and slot>0 and C_Container.GetContainerItemInfo(bag,slot)
                 local quest=info and C_Container.GetContainerItemQuestInfo and C_Container.GetContainerItemQuestInfo(bag,slot)
-                ui.materialBorder(b,info and info.itemID,quest and (quest.isQuestItem or (quest.questID and quest.questID>0)))
+                ui.materialBorder(b,info and info.itemID,quest and (quest.isQuestItem or (quest.questID and quest.questID>0)),
+                    info and ui.materialSaleContext and ui.materialSaleContext(bag,slot))
             end
         end
     end
@@ -417,6 +450,10 @@ f:SetScript("OnEvent",function(_,event)
                 if InCombatLockdown() then return end
                 local info=C_Container and C_Container.GetContainerItemInfo(bag,slot)
                 if not info or not info.itemID then return end
+                if ui.addMaterialTooltip then
+                    ui.addMaterialTooltip(tooltip,info.itemID,ui.materialSaleContext(bag,slot))
+                    return
+                end
                 local recipients=ui.materialRecipients(ui.guildState(),info.itemID)
                 if #recipients==0 then return end
                 tooltip:AddLine("TisteltiGuild · Destino de materiales",1,.82,.3)
@@ -439,5 +476,8 @@ f:SetScript("OnUpdate",function(_,dt)
     elapsed=elapsed+dt
     if elapsed<.2 then return end
     elapsed=0
-    if dirty and not InCombatLockdown() then dirty=false updateBags() end
+    if dirty and not InCombatLockdown() then
+        dirty=false updateBags()
+        if ui.refreshMaterialBanks then ui.refreshMaterialBanks() end
+    end
 end)

@@ -156,6 +156,7 @@ C_TradeSkillUI={
 loader=scanlua.eval('function(s) return assert(loadstring(s)) end')
 loader((root/'Gestion.lua').read_text(encoding='utf-8'))('TisteltiGuild',scanlua.globals().ui)
 loader((root/'Materiales.lua').read_text(encoding='utf-8'))('TisteltiGuild',scanlua.globals().ui)
+loader((root/'ConsejoMateriales.lua').read_text(encoding='utf-8'))('TisteltiGuild',scanlua.globals().ui)
 scanlua.execute('''
 frames[1].scripts.OnEvent(nil,'TRADE_SKILL_SHOW')
 local db=ui.guildState()

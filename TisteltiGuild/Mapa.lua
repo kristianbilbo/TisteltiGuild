@@ -227,7 +227,7 @@ SlashCmdList.TISTELTIMAP=function()
             print("TisteltiGuild · "..who.." · mapa "..p.map.." · recibido hace "..math.floor(GetTime()-p.time).." s")
         end
     end
-    print("TisteltiGuild mapa 0.10.2 · Compartir ubicación: "..(ui.locationShared() and "sí" or "no").." · Hermandad: "..tostring(guild)..
+    print("TisteltiGuild mapa 0.10.3 · Compartir ubicación: "..(ui.locationShared() and "sí" or "no").." · Hermandad: "..tostring(guild)..
         " · mensajes: "..received.." · posiciones recientes: "..peers.." · marcadores: "..drawn)
     print("Registro: "..tostring(registration).." · resultado de envío: "..tostring(sendResult)..
         " · última posición enviada: "..tostring(last).." · OpenMap: "..tostring(OpenMapAPI and OpenMapAPI.IsStitched() or false))
