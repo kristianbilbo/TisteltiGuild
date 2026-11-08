@@ -172,6 +172,12 @@ assert(db.recipes['Bea-Verde:22'].learned==false and db.recipes['Bea-Verde:22'].
 frames[1].scripts.OnEvent(nil,'CHAT_MSG_ADDON','TisteltiRec1','23 1 1 Antigua\\tHerrería\\t2 × Material 100','GUILD','Carlos-Rojo')
 assert(db.recipes['Carlos-Rojo:23'].mats=='2 × Material 100')
 assert(#ui.materialRecipients(db,100)==3,'sincronización moderna y antigua')
+local normalRealm=GetNormalizedRealmName
+GetNormalizedRealmName=function() return nil end
+assert(ui.guildState()==db,'world transfer keeps the last valid context')
+frames[1].scripts.OnEvent(nil,'TRADE_SKILL_SHOW')
+GetNormalizedRealmName=normalRealm
+assert(ui.guildState()==db,'returns to the same saved profile after transfer')
 ''')
 print('Escaneo real del addon y recepción de recetas antiguas/nuevas: correctos')
 scanlua.execute('''
@@ -230,3 +236,26 @@ assert(ui.guildState().materialColors[202][3]==.3)
 picker.cancelFunc() assert(ui.guildState().materialColors[202]==nil)
 ''')
 print('Vista de reparto, favoritos y selectores de color moderno/antiguo: correctos con API simulada')
+
+startup=LuaRuntime()
+startup.execute('''
+ui={} SlashCmdList={}
+function CreateFrame() return {RegisterEvent=function() end,SetScript=function() end} end
+function GetGuildInfo() return 'Guild' end
+function GetNormalizedRealmName() return nil end
+function UnitFactionGroup() return nil end
+function UnitExists() return false end
+function InCombatLockdown() return false end
+''')
+startup.execute("assert(loadstring(...))('TisteltiGuild',ui)",(root/'Gestion.lua').read_text(encoding='utf-8'))
+startup.execute('''
+local waiting=ui.guildState()
+assert(waiting.recipes and waiting.share==false and TisteltiGuildDB==nil,'no inventa ni persiste un reino durante la carga')
+GetNormalizedRealmName=function() return 'Forever' end
+UnitFactionGroup=function() return 'Alliance' end
+UnitExists=function() return true end
+UnitFullName=function() return 'Ana','Forever' end
+local ready=ui.guildState()
+assert(ready~=waiting and ready==TisteltiGuildDB['Forever/Alliance/Guild'],'usa el perfil real cuando está disponible')
+''')
+print('Carga inicial sin reino: contexto temporal sin persistencia y recuperación del perfil real correctos')

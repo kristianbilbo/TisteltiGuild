@@ -1,4 +1,6 @@
-# TisteltiGuild 0.10.3-beta
+# TisteltiGuild 0.10.4-beta
+
+- Corregido el error de concatenación cuando GetNormalizedRealmName devuelve nil durante cargas o traslados. Se conserva el contexto válido anterior o uno temporal en memoria sin crear perfiles con identidad incompleta. Las actualizaciones esperan al reino disponible.
 
 - Neón en banco nativo personal moderno/clásico y banco de hermandad. Actualización al cambiar pestaña o vaciar casillas. La vista de banco del addon resuelve también IDs de enlaces antiguos de hermandad.
 - Consejo principal en tooltip: enviar, reservar, subastar o vender al vendedor según recetas y precios. Se respetan los favoritos. Los objetos ligados o de misión no reciben recomendaciones de subasta.

@@ -42,7 +42,9 @@ local function realmName(unit)
     if not UnitExists(unit) then return end
     local name, realm = UnitFullName(unit)
     if not name or (issecretvalue and (issecretvalue(name) or issecretvalue(realm))) then return end
-    return name.."-"..((realm and realm ~= "") and realm or GetNormalizedRealmName())
+    realm=(realm and realm~="") and realm or GetNormalizedRealmName()
+    if not realm or realm=="" then return end
+    return name.."-"..realm
 end
 local function ownerKey(bucket,who)
     if bucket=="orders" or bucket=="wishes" then return artisanKey(who) end
@@ -68,18 +70,31 @@ local function migrateGearAndOrders(db)
     end
     db.gearOrderKeysVersion=1
 end
+local lastState,waitingState
 local function state()
     local guild,_,_,realm = GetGuildInfo("player")
-    local key = table.concat({GetNormalizedRealmName(),UnitFactionGroup("player") or "",guild or realmName("player") or "solo"},"/")
+    local currentRealm=GetNormalizedRealmName()
+    local faction=UnitFactionGroup("player")
+    if not currentRealm or currentRealm=="" or not faction or not realmName("player") then
+        -- Durante cargas/traslados el reino puede ser nil. No crear perfiles
+        -- persistentes con identidad incompleta ni migrar las claves guardadas.
+        waitingState=waitingState or {recipes={},orders={},goals={},wishes={},share=false}
+        return lastState or waitingState
+    end
+    local key = table.concat({currentRealm,faction,guild or realmName("player") or "solo"},"/")
     TisteltiGuildDB = TisteltiGuildDB or {}
     TisteltiGuildDB[key] = TisteltiGuildDB[key] or {recipes={},orders={},goals={},wishes={}}
     if TisteltiGuildDB[key].share==nil then TisteltiGuildDB[key].share=true end
     migrateArtisans(TisteltiGuildDB[key])
     migrateGearAndOrders(TisteltiGuildDB[key])
-    return TisteltiGuildDB[key]
+    lastState=TisteltiGuildDB[key]
+    return lastState
 end
 ui.guildState=state
-local function available() return not InCombatLockdown() end
+local function available()
+    local realm=GetNormalizedRealmName()
+    return not InCombatLockdown() and type(realm)=="string" and realm~=""
+end
 local function value() return strtrim(input:GetText() or "") end
 local function line(s) rows[#rows+1]=s end
 local function button(parent,label,width,x,y,fn)

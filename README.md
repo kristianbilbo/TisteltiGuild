@@ -1,6 +1,8 @@
 # TisteltiGuild
 
-Addon para WoW Forever (interfaz 16001). Versión actual **0.10.3-beta**.
+Addon para WoW Forever (interfaz 16001). Versión actual **0.10.4-beta**.
+
+La versión 0.10.4 corrige errores al faltar temporalmente el reino durante cargas o traslados. Se conserva el último contexto válido o se usa uno temporal en memoria, sin crear perfiles persistentes con identidad incompleta. Las actualizaciones esperan a que vuelva a estar disponible el reino.
 
 Panel de grupo y hermandad, profesiones, encargos, equipo, diario de aventuras y mapa.
 
@@ -50,7 +52,7 @@ En 0.9.2, los puntos de hermandad compensan el zoom mediante su tamaño, conserv
 
 Regresión del mapa: `python tests/test_guild_map_zoom.py` (requiere Python con `lupa`). Incluye zoom de 0,25 a 8, desplazamiento, cambios de mapa y filtrado de grupo. El usuario confirmó que el mapa funciona en el juego después de cargar la versión 0.9.2 con `/reload`.
 
-Después de actualizar los archivos con el juego abierto, ejecutar `/reload`. `/tisteltimapa` debe mostrar 0.10.3 para comprobar que la versión está cargada.
+Después de actualizar los archivos con el juego abierto, ejecutar `/reload`. `/tisteltimapa` debe mostrar 0.10.4 para comprobar que la versión está cargada.
 
 Pendiente de confirmar en el juego la lectura visual del banco.
 
