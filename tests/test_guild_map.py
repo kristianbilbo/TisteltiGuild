@@ -33,7 +33,7 @@ function visible()
  return names
 end
 ''')
-lua.execute((Path(__file__).resolve().parents[1]/'TisteltiGuild/Mapa.lua').read_text(encoding='utf-8'))
+lua.execute("assert(loadstring(...))('TisteltiGuild', {})", (Path(__file__).resolve().parents[1]/'TisteltiGuild/Mapa.lua').read_text(encoding='utf-8'))
 lua.execute(r'''
 function event(e,...) frames[1].scripts.OnEvent(frames[1],e,...) end
 function send(n) event('CHAT_MSG_ADDON','TisteltiMap1','1:3000:4000','GUILD',n) end

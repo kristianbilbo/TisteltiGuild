@@ -1,5 +1,56 @@
 local _,ui=...
 local cards={}
+local portraits={}
+local portraitStorage=CreateFrame("Frame")
+portraitStorage:Hide()
+-- Las caras generadas no son archivos: conservar la textura, no GetTexture().
+function ui.captureGearPortrait(db,who,token)
+    if not who or not UnitExists(token) then return end
+    local _,race=UnitRace(token)
+    local sex=UnitSex(token)
+    if issecretvalue and (issecretvalue(race) or issecretvalue(sex)) then return end
+    if race and (sex==2 or sex==3) then
+        db.gearFaces=db.gearFaces or {}
+        db.gearFaces[who]={race=race,sex=sex}
+    end
+    if not SetPortraitTexture or (UnitIsVisible and not UnitIsVisible(token)) then return end
+    local entry=portraits[who]
+    if not entry then
+        local texture=portraitStorage:CreateTexture(nil,"ARTWORK")
+        local mask=portraitStorage:CreateMaskTexture()
+        mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+        mask:SetAllPoints(texture)
+        texture:AddMaskTexture(mask)
+        entry={texture=texture,mask=mask}
+        portraits[who]=entry
+    end
+    SetPortraitTexture(entry.texture,token)
+end
+local function paintPortrait(card,db,who)
+    if card.face then card.face:Hide() card.face=nil end
+    card.portrait:SetTexCoord(0,1,0,1)
+    card.portrait:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    card.portrait:Show()
+    local entry=portraits[who]
+    if entry then
+        entry.texture:SetParent(card.header)
+        entry.mask:SetParent(card.header)
+        entry.texture:ClearAllPoints()
+        entry.texture:SetAllPoints(card.portrait)
+        entry.texture:Show()
+        card.portrait:Hide()
+        card.face=entry.texture
+    else
+        local face=(db.gearFaces or {})[who]
+        if face and C_Texture and C_Texture.GetAtlasInfo then
+            local suffix=face.race:lower().."-"..(face.sex==3 and "female" or "male")
+            for _,prefix in ipairs({"raceicon128-","raceicon-"}) do
+                local atlas=prefix..suffix
+                if C_Texture.GetAtlasInfo(atlas) then card.portrait:SetAtlas(atlas) break end
+            end
+        end
+    end
+end
 local SLOT_NAMES={"Cabeza","Cuello","Hombros","Camisa","Pecho","Cintura","Piernas","Pies","Muñecas","Manos","Anillo","Anillo","Abalorio","Abalorio","Espalda","Mano principal","Mano secundaria","A distancia","Tabardo"}
 local function panel(frame)
     frame:SetBackdrop({bgFile="Interface\\Buttons\\WHITE8X8",edgeFile="Interface\\Buttons\\WHITE8X8",edgeSize=1})
@@ -76,17 +127,24 @@ local function itemRow(card,index,width)
     return row
 end
 function ui.hideGear()
-    for _,card in ipairs(cards) do card:Hide() end
+    for _,card in ipairs(cards) do
+        if card.face then card.face:Hide() card.face=nil end
+        card:Hide()
+    end
 end
 function ui.gear(parent,db,key)
-    local people,units={},{}
+    ui.hideGear()
+    local people={}
     local function unit(token)
         if not UnitExists(token) then return end
         local name,realm=UnitFullName(token)
         if not name or (issecretvalue and (issecretvalue(name) or issecretvalue(realm))) then return end
-        units[key(name.."-"..((realm and realm~="") and realm or GetNormalizedRealmName()))]=token
+        local who=key(name.."-"..((realm and realm~="") and realm or GetNormalizedRealmName()))
+        ui.captureGearPortrait(db,who,token)
     end
     unit("player")
+    unit("target")
+    unit("focus")
     local raid=IsInRaid()
     for i=1,(raid and GetNumGroupMembers() or GetNumSubgroupMembers()) do unit((raid and "raid" or "party")..i) end
     for who,gear in pairs(db.gear or {}) do people[#people+1]={who=who,gear=gear} end
@@ -106,9 +164,7 @@ function ui.gear(parent,db,key)
         -- El guion separa el apellido en Forever; conservarlo en la placa.
         local first,last=person.who:match("^([^-]+)%-(.+)$")
         card.name:SetText(first and (last==GetNormalizedRealmName() and first or first.." "..last) or person.who)
-        local token=units[key(person.who)]
-        card.portrait:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-        if token and SetPortraitTexture then SetPortraitTexture(card.portrait,token) end
+        paintPortrait(card,db,key(person.who))
         card.detail:SetText(#entries.." piezas registradas")
         for j,entry in ipairs(entries) do
             local row=itemRow(card,j,width)

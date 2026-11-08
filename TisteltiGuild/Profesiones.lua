@@ -44,6 +44,9 @@ function ui.hideCraft()
     if panel then panel:Hide() end
 end
 function ui.craft(parent,db,selfName,search,refresh,order)
+    local learned={}
+    for key,r in pairs(db.recipes) do if r.learned~=false then learned[key]=r end end
+    db={recipes=learned,members=db.members}
     if not panel then
         panel=CreateFrame("Frame",nil,parent)
         panel:SetPoint("TOPLEFT",14,-106)

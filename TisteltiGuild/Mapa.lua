@@ -1,4 +1,5 @@
 -- Posiciones efímeras de los personajes conectados de la hermandad.
+local _,ui=...
 local prefix = "TisteltiMap1"
 local members, pins, classes = {}, {}, {}
 local guild, last, sent, lastClassTime
@@ -118,7 +119,7 @@ local function redraw()
                     pin.icon = icon
                     pin:SetScript("OnEnter",function(self)
                         GameTooltip:SetOwner(self,"ANCHOR_RIGHT")
-                        GameTooltip:SetText(self.member)
+                        GameTooltip:SetText(ui.short(self.member))
                         GameTooltip:Show()
                     end)
                     pin:SetScript("OnLeave",function() GameTooltip:Hide() end)
@@ -137,6 +138,7 @@ end
 
 local function broadcast()
     if not context() or InCombatLockdown() then return end
+    if not ui.locationShared() then return end
     local map = C_Map.GetBestMapForUnit("player")
     local pos = map and C_Map.GetPlayerMapPosition(map,"player")
     local msg = "-"
@@ -155,6 +157,20 @@ local function broadcast()
         sendResult=C_ChatInfo.SendAddonMessage(prefix,msg,"GUILD")
         local success=Enum and Enum.SendAddonMessageResult and Enum.SendAddonMessageResult.Success or 0
         if sendResult==nil or sendResult==true or sendResult==success then last,sent = msg,GetTime() end
+    end
+end
+
+-- Preferencia por personaje: desactivada hasta que el jugador la active.
+function ui.locationShared()
+    return TisteltiJourneyDB and TisteltiJourneyDB.shareLocation==true or false
+end
+function ui.setLocationShared(enabled)
+    TisteltiJourneyDB=TisteltiJourneyDB or {history={}}
+    TisteltiJourneyDB.shareLocation=not not enabled
+    last,sent=nil,nil
+    if enabled then broadcast()
+    elseif context() and C_ChatInfo then
+        C_ChatInfo.SendAddonMessage(prefix,"-","GUILD")
     end
 end
 
@@ -189,7 +205,7 @@ frame:SetScript("OnEvent",function(_,event,key,msg,channel,sender)
         if not sender or sender==unitKey("player") then return end
         local class = msg:match("^C:([A-Z]+)$")
         if class and RAID_CLASS_COLORS[class] then classes[sender]=class return end
-        if msg=="-" then members[sender]=nil return end
+        if msg=="-" then members[sender]=nil redraw() return end
         local map,x,y = msg:match("^(%d+):(%d+):(%d+)$")
         map,x,y = tonumber(map),tonumber(x),tonumber(y)
         if map and map>0 and x<=10000 and y<=10000 and C_Map.GetMapInfo(map) then
@@ -211,7 +227,7 @@ SlashCmdList.TISTELTIMAP=function()
             print("TisteltiGuild · "..who.." · mapa "..p.map.." · recibido hace "..math.floor(GetTime()-p.time).." s")
         end
     end
-    print("TisteltiGuild mapa 0.9.2 · Hermandad: "..tostring(guild)..
+    print("TisteltiGuild mapa 0.10.2 · Compartir ubicación: "..(ui.locationShared() and "sí" or "no").." · Hermandad: "..tostring(guild)..
         " · mensajes: "..received.." · posiciones recientes: "..peers.." · marcadores: "..drawn)
     print("Registro: "..tostring(registration).." · resultado de envío: "..tostring(sendResult)..
         " · última posición enviada: "..tostring(last).." · OpenMap: "..tostring(OpenMapAPI and OpenMapAPI.IsStitched() or false))

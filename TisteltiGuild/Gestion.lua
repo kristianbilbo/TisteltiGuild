@@ -4,7 +4,7 @@ local events = CreateFrame("Frame")
 local window, listing, input, hint, title, actions
 local tab, offset, rows = 1, 0, {}
 local prefix = "DiarioGuild2"
-local names = {"Grupo", "Profesiones", "Encargos", "Equipo", "Aventuras", "Retos", "Banco"}
+local names = {"Grupo", "Profesiones", "Encargos", "Equipo", "Aventuras", "Retos", "Banco", "Materiales"}
 -- Forever guarda el apellido en UnitFullName, pero el canal lo separa con un guion.
 local function artisanKey(who)
     if not who then return end
@@ -78,6 +78,7 @@ local function state()
     migrateGearAndOrders(TisteltiGuildDB[key])
     return TisteltiGuildDB[key]
 end
+ui.guildState=state
 local function available() return not InCombatLockdown() end
 local function value() return strtrim(input:GetText() or "") end
 local function line(s) rows[#rows+1]=s end
@@ -87,11 +88,12 @@ local function button(parent,label,width,x,y,fn)
     return b
 end
 -- Cada cliente publica únicamente su propio libro en la hermandad actual.
-local recipePrefix="TisteltiRec1"
+local recipePrefix="TisteltiRec2"
 local pendingRecipes, sentRecipes, partial = {}, {}, {}
 local guildState, lastReplay, activeRecipe
 local function scheduleRecipe(id,r)
     local payload=r.name.."\t"..r.prof.."\t"..r.mats
+    if ui.packMaterialRecipe then payload=payload.."\t"..ui.packMaterialRecipe(r) end
     if sentRecipes[id]~=payload and (not pendingRecipes[id] or pendingRecipes[id].data~=payload) then
         pendingRecipes[id]={data=payload,part=1}
     end
@@ -114,6 +116,7 @@ local function recipeTick()
         if IsInGuild() and GetGuildInfo("player") then
             replay(db)
             C_ChatInfo.SendAddonMessage(recipePrefix,"?","GUILD")
+            C_ChatInfo.SendAddonMessage("TisteltiRec1","?","GUILD")
         end
     end
     if not IsInGuild() then return end
@@ -149,8 +152,15 @@ local function receiveRecipe(msg,ch,who)
     parts[i]=chunk
     if i~=n then return end
     partial[who]=nil
-    local name,prof,mats=table.concat(parts):match("^([^\t]+)\t([^\t]+)\t(.*)$")
-    if name then state().recipes[key]={who=who,name=name,prof=prof,mats=mats} return true end
+    local name,prof,rest=table.concat(parts):match("^([^\t]+)\t([^\t]+)\t(.*)$")
+    if name then
+        local mats,meta=rest:match("^([^\t]*)\t(.*)$")
+        local r={who=who,name=name,prof=prof,mats=mats or rest}
+        if meta and ui.unpackMaterialRecipe then ui.unpackMaterialRecipe(r,meta) end
+        state().recipes[key]=r
+        if ui.invalidateMaterials then ui.invalidateMaterials() end
+        return true
+    end
 end
 local function scan()
     if not available() then return end
@@ -165,24 +175,29 @@ local function scan()
     local who=artisanKey(realmName("player"))
     for _,id in ipairs(ids) do
         local r=api.GetRecipeInfo(id)
-        if r and r.learned and r.name then
+        if r and r.name and (r.learned or api.GetAllRecipeIDs) then
             local spec=api.GetRecipeSchematic(id,false)
             if spec then
-                local mats={}
+                local mats,reagents={},{}
                 for _,slot in ipairs(spec.reagentSlotSchematics or {}) do
                     if slot.required then
                         local choices={}
                         for _,item in ipairs(slot.reagents or {}) do
-                            if item.itemID then choices[#choices+1]=C_Item.GetItemNameByID(item.itemID) or ("#"..item.itemID) end
+                            if item.itemID then
+                                choices[#choices+1]=C_Item.GetItemNameByID(item.itemID) or ("#"..item.itemID)
+                                reagents[item.itemID]=slot.quantityRequired or 1
+                            end
                         end
                         mats[#mats+1]=(slot.quantityRequired or "?").." × "..(#choices>0 and table.concat(choices,"/") or "?")
                     end
                 end
-                data[who..":"..id]={who=who,name=r.name,prof=p.professionName or p.profession or tostring(p.professionID),mats=table.concat(mats,", ")}
+                data[who..":"..id]={who=who,name=r.name,prof=p.professionName or p.profession or tostring(p.professionID),mats=table.concat(mats,", "),
+                    reagents=reagents,learned=not not r.learned,professionID=p.professionID,rank=p.skillLevel,seen=time()}
                 if who then scheduleRecipe(tostring(id),data[who..":"..id]) end
             end
         end
     end
+    if ui.invalidateMaterials then ui.invalidateMaterials() end
 end
 local queue={}
 local function send(kind,id,body)
@@ -269,16 +284,23 @@ local function captureLoot(text)
     if Item and Item.CreateFromItemLink then Item:CreateFromItemLink(link):ContinueOnItemLoad(save) else save() end
 end
 local catalog={{"Minas de la Muerte",17,24,{166,167,168,214}},{"Las Mazmorras",24,30,{377,387,388,391}}}
+local pendingSnapshot
 local function snapshot()
-    if not available() then return end
+    if not available() then pendingSnapshot=true return end
+    local who=artisanKey(realmName("player"))
+    if not who then return end
+    pendingSnapshot=nil
     local db=state()
+    ui.captureGearPortrait(db,who,"player")
+    local face=(db.gearFaces or {})[who]
+    if face then send("F","1",face.race..","..face.sex) end
     local qs,gear,ids={},{},{}
     for _,d in ipairs(catalog) do for _,id in ipairs(d[4]) do
         if C_QuestLog.IsOnQuest(id) then qs[#qs+1]=id end
     end end
     for slot=1,19 do
         local link=GetInventoryItemLink("player",slot)
-        local itemID=link and link:match("item:(%d+)")
+        local itemID=(GetInventoryItemID and GetInventoryItemID("player",slot)) or (link and link:match("item:(%d+)"))
         if itemID then ids[#ids+1]=slot.."="..itemID end
         if link and C_Item.GetDetailedItemLevelInfo then
             local level=C_Item.GetDetailedItemLevelInfo(link)
@@ -291,7 +313,7 @@ local function snapshot()
     db.gear=db.gear or {}
     local equipment=table.concat(ids,",")
     db.gear[artisanKey(realmName("player"))]=equipment
-    if equipment~="" then send("E","1",equipment) end
+    send("E","1",equipment~="" and equipment or "0")
     send("P","1",body)
     local h=(TisteltiJourneyDB and TisteltiJourneyDB.history) or {}
     local kills=0
@@ -512,6 +534,7 @@ end
 refresh=function()
     if not window or not window:IsShown() or not available() then return end
     ui.hideCraft() ui.hideBank() ui.hideGear()
+    if ui.hideMaterials then ui.hideMaterials() end
     local journal=tab==1 or tab==5
     input:SetShown(tab==6)
     if window.orderFilter then window.orderFilter:Hide() end
@@ -545,7 +568,7 @@ refresh=function()
             line(chronicle(r.start).."   Entramos en "..r.name.." con "..table.concat(people,", ")..".")
         end
         line(chronicle(time()).."\nLos compañeros que hoy caminan a nuestro lado")
-        hint:SetText("Crónica del grupo. Compartir equipo permite a la hermandad consultar tus piezas y comparar el botín.")
+        hint:SetText("Comparte tu equipo o activa tu ubicación en el mapa de hermandad con los controles inferiores.")
         local function unit(u)
             local n=realmName(u)
             if n then line(ui.short(n).." · "..UnitLevel(u).." · "..(UnitClass(u) or "?").." · "..(UnitGroupRolesAssigned(u) or "?")) end
@@ -558,6 +581,10 @@ refresh=function()
         end
         plans(db)
         action(1,db.share and "Compartir equipo: sí" or "Compartir equipo: no",function() db.share=not db.share wipe(queue) snapshot() refresh() end)
+        action(2,ui.locationShared and ui.locationShared() and "Ubicación: sí" or "Ubicación: no",function()
+            if ui.setLocationShared then ui.setLocationShared(not ui.locationShared()) end
+            refresh()
+        end)
     elseif tab==2 then
         hint:SetText("Elige un oficio y una receta para consultar los materiales y sus artesanos.")
         ui.craft(window,db,artisanKey(realmName("player")),"",refresh,function(recipe,target)
@@ -574,31 +601,43 @@ refresh=function()
             tab=3 offset=0 input:SetText("") refresh()
         end)
         action(1,"Materiales del banco",function() tab=7 input:SetText("") refresh() end)
+        action(2,"Repartir materiales",function() tab=8 refresh() end)
+    elseif tab==8 then
+        window.scroll:Hide()
+        hint:SetText("Elige un material. Marca tus destinatarios favoritos con la estrella; pulsa un oficio para cambiar su color.")
+        title:SetText("TisteltiGuild · Repartir materiales")
+        ui.materials(window,db,refresh)
+        action(1,"Volver a profesiones",function() tab=2 refresh() end)
+        action(2,db.materialBorders==false and "Neón: no" or "Neón: sí",function()
+            db.materialBorders=db.materialBorders==false
+            ui.invalidateMaterials() refresh()
+        end)
     elseif tab==7 then
         hint:SetText("Contenido de la última visita. Abre el banco para actualizar sus casillas.")
         ui.bank(window,(db.personalBank or {})[artisanKey(realmName("player"))],(db.bank or {})[realmName("player")] or {},refresh)
         return
     elseif tab==5 then
         hint:SetText("Registro automático por personaje. Abre el diario para consultar el mapa o copiar una visita.")
-        for _,r in ipairs((TisteltiJourneyDB and TisteltiJourneyDB.history) or {}) do line("|TInterface\\Icons\\INV_Misc_Map_01:18|t "..chronicle(r.start).." · "..r.name.." · "..math.floor((r.stop-r.start)/60).." min") end
+        for _,r in ipairs((TisteltiJourneyDB and TisteltiJourneyDB.history) or {}) do line("|TInterface\\Icons\\INV_Misc_Map_01:18|t "..chronicle(r.start).." · "..r.name.." · "..math.floor(math.max(0,(r.stop or r.last or r.start)-r.start)/60).." min") end
         local bosses,minutes=0,0
-        for _,r in ipairs(TisteltiJourneyDB.history or {}) do
+        for _,r in ipairs((TisteltiJourneyDB and TisteltiJourneyDB.history) or {}) do
             for _ in pairs(r.bosses or {}) do bosses=bosses+1 end
-            minutes=minutes+(r.stop-r.start)/60
+            minutes=minutes+math.max(0,(r.stop or r.last or r.start)-r.start)/60
         end
-        table.insert(rows,1,string.format("|TInterface\\Icons\\INV_Misc_Book_09:24|t  %d expediciones     |TInterface\\Icons\\INV_Misc_Bone_02:24|t  %d jefes     ·     %.0f min",#TisteltiJourneyDB.history,bosses,minutes))
+        table.insert(rows,1,string.format("|TInterface\\Icons\\INV_Misc_Book_09:24|t  %d expediciones     |TInterface\\Icons\\INV_Misc_Bone_02:24|t  %d jefes     ·     %.0f min",#((TisteltiJourneyDB and TisteltiJourneyDB.history) or {}),bosses,minutes))
         for who,stat in pairs(db.stats or {}) do
             local v,k,e=stat.body:match("^(%d+),(%d+),(%d+)$")
-            if v then line(who.." · "..v.." visitas · "..k.." jefes · "..e.." botines épicos observados") end
+            if v then line(ui.short(who).." · "..v.." visitas · "..k.." jefes · "..e.." botines épicos observados") end
         end
-        for _,e in ipairs(db.epics or {}) do line(date("%d/%m",e.t).." · "..e.text) end
+        for _,e in ipairs(db.epics or {}) do line(date("%d/%m",e.t).." · "..ui.storyText(e.text)) end
         action(1,"Diario y mapa",function() window:Hide() SlashCmdList.DIARIOGUILD("") end)
     elseif tab==3 then
         hint:SetText("Los encargos se crean desde Profesiones. Cada artesano puede marcar los suyos como hechos.")
         displayOrders(db)
         return
     elseif tab==4 then
-        hint:SetText("Equipo registrado por personaje. Las mejoras de botín se consultan automáticamente.")
+        hint:SetText("Equipo guardado por personaje. La cara se actualiza al tenerlo disponible.")
+        action(1,"Actualizar fichas",function() snapshot() send("H","1","?") refresh() end)
         local populated=ui.gear(window.page,db,artisanKey)
         listing:SetShown(not populated)
         listing:SetText("Todavía no hay equipo registrado.")
@@ -658,17 +697,20 @@ function GestionGuildAbrir()
         for i=1,3 do actions[i]=button(window,"",140,16+(i-1)*146,-560,function() end) end
         button(window,"Cerrar",90,832,-560,function() window:Hide() end)
     end
+    snapshot()
+    send("H","1","?")
     window:Show() refresh()
 end
 SLASH_GESTIONGUILD1="/guildpanel"
 SLASH_GESTIONGUILD2="/tisteltiguild"
 SlashCmdList.GESTIONGUILD=GestionGuildAbrir
 local buckets={O="orders",G="goals",W="wishes",T="trips"}
+local lastGearReply=0
 local function receive(p,msg,ch,sender)
     if p~=prefix or ch~="GUILD" or not available() or not state().share or #msg>245 then return end
     if not sender:find("-",1,true) then sender=sender.."-"..GetNormalizedRealmName() end
     if artisanKey(sender)==artisanKey(realmName("player")) then return end
-    local kind,id,body=msg:match("^([PROGWDTJQASE])\t([^\t]+)\t(.+)$")
+    local kind,id,body=msg:match("^([PROGWDTJQASEFH])\t([^\t]+)\t(.+)$")
     if not kind then return end
     local db=state()
     db.trips=db.trips or {}
@@ -685,12 +727,23 @@ local function receive(p,msg,ch,sender)
     elseif kind=="J" then
         local trip=db.trips[body..":"..id]
         if trip then trip.people=trip.people or {} trip.people[sender]=true end
-    elseif kind=="E" and body:match("^[%d,=]+$") then db.gear=db.gear or {} db.gear[artisanKey(sender)]=body
+    elseif kind=="H" and body=="?" then
+        if GetTime()-lastGearReply>=5 then
+            lastGearReply=GetTime()
+            C_Timer.After(1,function() snapshot() refresh() end)
+        end
+    elseif kind=="F" then
+        local race,sex=body:match("^([%a]+),([23])$")
+        if race and #race<=40 then
+            db.gearFaces=db.gearFaces or {}
+            db.gearFaces[artisanKey(sender)]={race=race,sex=tonumber(sex)}
+        end
+    elseif kind=="E" and body:match("^[%d,=]+$") then db.gear=db.gear or {} db.gear[artisanKey(sender)]=body=="0" and "" or body
     elseif kind=="P" then
         if body:match("^%d+;[%u]*;[%d,]*;[%d,=]*$") then db.members=db.members or {} db.members[artisanKey(sender)]={body=body,t=time()} end
     elseif kind=="R" then
         local prof,mats=body:match("^([^\t]+)\t(.*)$")
-        if prof then sender=artisanKey(sender) db.recipes[sender..":"..id]={who=sender,name=id,prof=prof,mats=mats} end
+        if prof then sender=artisanKey(sender) db.recipes[sender..":"..id]={who=sender,name=id,prof=prof,mats=mats} if ui.invalidateMaterials then ui.invalidateMaterials() end end
     elseif id:match("^%d+%-%d+$") then
         local bucket=buckets[kind] or (kind=="D" and buckets[body])
         if bucket then
@@ -708,13 +761,16 @@ events:RegisterEvent("GROUP_ROSTER_UPDATE")
 events:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 events:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 events:RegisterEvent("UNIT_PORTRAIT_UPDATE")
+events:RegisterEvent("PLAYER_TARGET_CHANGED")
+events:RegisterEvent("PLAYER_REGEN_ENABLED")
+events:RegisterEvent("UNIT_MODEL_CHANGED")
 events:RegisterEvent("TRADE_SKILL_SHOW")
 events:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
 for _,event in ipairs({"BANKFRAME_OPENED","BANKFRAME_CLOSED","BAG_UPDATE_DELAYED","PLAYERBANKSLOTS_CHANGED","BANK_TABS_CHANGED","GUILDBANK_UPDATE_TABS","GUILDBANKFRAME_OPENED","GUILDBANKFRAME_CLOSED","GUILDBANKBAGSLOTS_CHANGED","CHAT_MSG_LOOT"}) do pcall(events.RegisterEvent,events,event) end
 local pending
 events:SetScript("OnEvent",function(_,event,...)
     if event=="PLAYER_LOGIN" then
-        if C_ChatInfo then C_ChatInfo.RegisterAddonMessagePrefix("TisteltiOrder") C_ChatInfo.RegisterAddonMessagePrefix(prefix) C_ChatInfo.RegisterAddonMessagePrefix(recipePrefix) C_Timer.NewTicker(.45,recipeTick) end
+        if C_ChatInfo then C_ChatInfo.RegisterAddonMessagePrefix("TisteltiOrder") C_ChatInfo.RegisterAddonMessagePrefix(prefix) C_ChatInfo.RegisterAddonMessagePrefix(recipePrefix) C_ChatInfo.RegisterAddonMessagePrefix("TisteltiRec1") C_Timer.NewTicker(.45,recipeTick) end
         local function attach()
             if CharacterFrame and not CharacterFrame.tisteltiSnapshot then
                 CharacterFrame:HookScript("OnShow",snapshot)
@@ -724,14 +780,22 @@ events:SetScript("OnEvent",function(_,event,...)
         attach()
         if ToggleCharacter and hooksecurefunc then hooksecurefunc("ToggleCharacter",function() attach() end) end
         C_Timer.After(4,partyStory)
-        C_Timer.After(4,snapshot)
+        C_Timer.After(4,function() snapshot() send("H","1","?") refresh() end)
         C_Timer.NewTicker(120,snapshot)
         C_Timer.NewTicker(.7,function()
             if #queue>0 and available() and state().share and IsInGuild() then C_ChatInfo.SendAddonMessage(prefix,table.remove(queue,1),"GUILD") end
         end)
     elseif event=="GROUP_ROSTER_UPDATE" then partyStory() refresh()
-    elseif event=="PLAYER_EQUIPMENT_CHANGED" then if available() then snapshot() end
-    elseif event=="GET_ITEM_INFO_RECEIVED" or event=="UNIT_PORTRAIT_UPDATE" then
+    elseif event=="PLAYER_EQUIPMENT_CHANGED" then snapshot() refresh()
+    elseif event=="PLAYER_REGEN_ENABLED" then if pendingSnapshot then snapshot() refresh() end
+    elseif event=="UNIT_PORTRAIT_UPDATE" or event=="UNIT_MODEL_CHANGED" or event=="PLAYER_TARGET_CHANGED" then
+        local token=event=="PLAYER_TARGET_CHANGED" and "target" or ...
+        if token and UnitIsPlayer(token) then
+            ui.captureGearPortrait(state(),artisanKey(realmName(token)),token)
+            if token=="player" then snapshot() end
+        end
+        if tab==4 then refresh() end
+    elseif event=="GET_ITEM_INFO_RECEIVED" then
         if tab==4 then refresh() end
     elseif event=="BANKFRAME_OPENED" then personalOpen=true queueBankRead()
     elseif event=="BANKFRAME_CLOSED" then personalOpen=false
@@ -768,7 +832,7 @@ events:SetScript("OnEvent",function(_,event,...)
                 refresh()
             end
         end
-        elseif p==recipePrefix then if receiveRecipe(msg,ch,who) then refresh() end else receive(...) end
+        elseif p==recipePrefix or p=="TisteltiRec1" then if receiveRecipe(msg,ch,who) then refresh() end else receive(...) end
     elseif not pending then
         pending=true C_Timer.After(.6,function() pending=false scan() refresh() end)
     end

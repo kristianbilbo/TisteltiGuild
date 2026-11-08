@@ -44,7 +44,11 @@ local function sample()
 end
 local function keys(t)
     local a = {}
-    for k in pairs(t) do a[#a+1]=k end
+    local seen={}
+    for k in pairs(t or {}) do
+        local label=ui.short(k)
+        if not seen[label] then a[#a+1]=label seen[label]=true end
+    end
     table.sort(a)
     return table.concat(a,", ")
 end

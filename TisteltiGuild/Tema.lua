@@ -52,5 +52,17 @@ function ui.button(parent)
 end
 
 
-function ui.short(name) return (name or ""):match("^[^-]+") or name end
+-- Retira sólo el reino real; en Forever el guion también separa apellidos.
+function ui.short(name)
+    name=name or ""
+    local realm=GetNormalizedRealmName and GetNormalizedRealmName() or ""
+    local head,suffix=name:match("^(.*)%-([^%-]+)$")
+    if head and (suffix==realm or suffix:lower():match("^camwow.*realm")) then name=head end
+    return (name:gsub("%-"," "))
+end
+function ui.storyText(text)
+    local realm=GetNormalizedRealmName and GetNormalizedRealmName() or ""
+    if realm~="" then text=text:gsub("%-"..realm:gsub("(%W)","%%%1"),"") end
+    return (text:gsub("%-[Cc][Aa][Mm][Ww][Oo][Ww][%w_]*", ""))
+end
 
