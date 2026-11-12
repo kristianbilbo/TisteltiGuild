@@ -583,7 +583,7 @@ refresh=function()
             line(chronicle(r.start).."   Entramos en "..r.name.." con "..table.concat(people,", ")..".")
         end
         line(chronicle(time()).."\nLos compañeros que hoy caminan a nuestro lado")
-        hint:SetText("Comparte tu equipo o activa tu ubicación en el mapa de hermandad con los controles inferiores.")
+        hint:SetText("Comparte tu equipo con el control inferior.")
         local function unit(u)
             local n=realmName(u)
             if n then line(ui.short(n).." · "..UnitLevel(u).." · "..(UnitClass(u) or "?").." · "..(UnitGroupRolesAssigned(u) or "?")) end
@@ -596,10 +596,6 @@ refresh=function()
         end
         plans(db)
         action(1,db.share and "Compartir equipo: sí" or "Compartir equipo: no",function() db.share=not db.share wipe(queue) snapshot() refresh() end)
-        action(2,ui.locationShared and ui.locationShared() and "Ubicación: sí" or "Ubicación: no",function()
-            if ui.setLocationShared then ui.setLocationShared(not ui.locationShared()) end
-            refresh()
-        end)
     elseif tab==2 then
         hint:SetText("Elige un oficio y una receta para consultar los materiales y sus artesanos.")
         ui.craft(window,db,artisanKey(realmName("player")),"",refresh,function(recipe,target)

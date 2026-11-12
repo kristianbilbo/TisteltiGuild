@@ -1,3 +1,9 @@
+# TisteltiGuild 0.10.5-beta
+
+- Retirado el módulo de mapa de hermandad: envío y recepción de posiciones, marcadores, integración con OpenMap, temporizadores y comando `/tisteltimapa`.
+- Retirado el control de compartir ubicación de Grupo. Se conservan el botón del minimapa, las misiones locales y los puntos del diario.
+- Revisados origin/main, ramas remotas y solicitudes de ivanlod3: sin cambios pendientes encontrados en este repositorio.
+
 # TisteltiGuild 0.10.4-beta
 
 - Corregido el error de concatenación cuando GetNormalizedRealmName devuelve nil durante cargas o traslados. Se conserva el contexto válido anterior o uno temporal en memoria sin crear perfiles con identidad incompleta. Las actualizaciones esperan al reino disponible.

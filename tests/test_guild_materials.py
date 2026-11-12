@@ -107,25 +107,6 @@ assert(not button.textures[1].shown,'limpia casillas vacías en bolsa combinada'
 ''')
 print('Nombres, recomendaciones, recetas futuras, protocolo, caché y bordes: correctos')
 
-lua.execute('''
-messages={} tickers={}
-C_ChatInfo={RegisterAddonMessagePrefix=function() end,SendAddonMessage=function(p,m) messages[#messages+1]=m end}
-C_Timer={NewTicker=function(_,f) tickers[#tickers+1]=f end}
-C_Map={GetBestMapForUnit=function() return 1 end,GetPlayerMapPosition=function() return {GetXY=function() return .4,.6 end} end}
-function UnitClass() return 'Sacerdote','PRIEST' end
-''')
-load((root/'Mapa.lua').read_text(encoding='utf-8'))('TisteltiGuild',lua.globals().ui)
-lua.execute('''
-local map=frames[#frames]
-map.scripts.OnEvent(map,'PLAYER_LOGIN')
-assert(not ui.locationShared(),'privacidad por defecto')
-tickers[1]() assert(#messages==0,'no publica sin consentimiento')
-ui.setLocationShared(true) assert(ui.locationShared() and messages[#messages]=='1:4000:6000')
-ui.setLocationShared(false) assert(messages[#messages]=='-','retira posición al desactivar')
-local n=#messages now=130 tickers[1]() assert(#messages==n,'sigue sin publicar')
-''')
-print('Ubicación: desactivada por defecto, activación y retirada correctas')
-
 scanlua=LuaRuntime(unpack_returned_tuples=True)
 scanlua.execute('''
 ui={} frames={} SlashCmdList={}

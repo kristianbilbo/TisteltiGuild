@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: TisteltiGuild
 ## Notes: Grupo, profesiones, encargos, equipo y diario de aventuras.
-## Version: 0.10.4-beta
+## Version: 0.10.5-beta
 ## SavedVariables: TisteltiGuildDB
 ## SavedVariablesPerCharacter: TisteltiJourneyDB
 ## OptionalDeps: DiarioGuild, Auctionator
@@ -16,7 +16,6 @@ Gestion.lua
 Materiales.lua
 ConsejoMateriales.lua
 BancosMateriales.lua
-Mapa.lua
 Minimapa.lua
 
 
