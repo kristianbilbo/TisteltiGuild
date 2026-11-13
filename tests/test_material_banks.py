@@ -1,6 +1,6 @@
 from pathlib import Path
 from lupa.lua51 import LuaRuntime
-root=Path(__file__).resolve().parents[1]/'TisteltiGuild'
+root=Path(__file__).resolve().parents[1]
 lua=LuaRuntime()
 lua.execute('''
 ui={} frames={} calls={} requests=0 combat=false

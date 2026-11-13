@@ -1,6 +1,8 @@
+Corrección de empaquetado 0.10.5.1-beta: TOC, Lua y Media en la raíz del repositorio para el empaquetador de CurseForge. Sin cambios funcionales.
+
 # TisteltiGuild
 
-Addon para WoW Forever (interfaz 16001). Versión actual **0.10.5-beta**.
+Addon para WoW Forever (interfaz 16001). Versión actual **0.10.5.1-beta**.
 
 La versión 0.10.4 corrige errores al faltar temporalmente el reino durante cargas o traslados. Se conserva el último contexto válido o se usa uno temporal en memoria, sin crear perfiles persistentes con identidad incompleta. Las actualizaciones esperan a que vuelva a estar disponible el reino.
 
@@ -30,13 +32,13 @@ Un halo exterior dorado pulsante con moneda marca precios altos: por defecto al 
 
 ## Instalación
 
-Copia la carpeta `TisteltiGuild` de este repositorio dentro de `_forever_/Interface/AddOns/`. Debe quedar `AddOns/TisteltiGuild/TisteltiGuild.toc`. Activa el addon en el juego.
+Extrae la carpeta `TisteltiGuild` del ZIP publicado dentro de `_forever_/Interface/AddOns/`. Debe quedar `AddOns/TisteltiGuild/TisteltiGuild.toc`. Activa el addon en el juego.
 
 Abre el panel con `/tisteltiguild` o `/guildpanel`, y el diario con `/diarioguild`.
 
 ## Código y datos
 
-Los archivos Lua y el manifiesto TOC están en `TisteltiGuild/`; las texturas están en `TisteltiGuild/Media/`. El manifiesto define el orden de carga.
+Los archivos Lua y el manifiesto TOC están en la raíz del repositorio; las texturas están en `Media/`. El manifiesto define el orden de carga.
 
 El addon se mantiene separado de TisteltiPlates. `DiarioGuild` es una dependencia opcional de compatibilidad con datos anteriores, no necesaria para instalaciones nuevas.
 

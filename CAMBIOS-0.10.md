@@ -1,3 +1,5 @@
+Corrección de empaquetado 0.10.5.1-beta: TOC, Lua y Media en la raíz del repositorio para el empaquetador de CurseForge. Sin cambios funcionales.
+
 # TisteltiGuild 0.10.5-beta
 
 - Retirado el módulo de mapa de hermandad: envío y recepción de posiciones, marcadores, integración con OpenMap, temporizadores y comando `/tisteltimapa`.

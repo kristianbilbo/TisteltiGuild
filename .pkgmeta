@@ -1,11 +1,8 @@
-# El repositorio contiene el addon en una subcarpeta.
-package-as: TisteltiGuild_Package
+package-as: TisteltiGuild
 enable-nolib-creation: no
-move-folders:
-  TisteltiGuild_Package/TisteltiGuild: TisteltiGuild
 ignore:
   - tests
   - README.md
 manual-changelog:
-  filename: TisteltiGuild/CAMBIOS-0.10.md
+  filename: CAMBIOS-0.10.md
   markup-type: markdown
